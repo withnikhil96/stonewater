@@ -144,7 +144,7 @@ export default function ReservationForm() {
                 id="firstName"
                 placeholder="Enter your first name"
                 className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white",
+                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
                   errors.firstName && "border-red-500",
                 )}
                 {...register("firstName", { required: true })}
@@ -160,7 +160,7 @@ export default function ReservationForm() {
                 id="lastName"
                 placeholder="Enter your last name"
                 className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white",
+                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
                   errors.lastName && "border-red-500",
                 )}
                 {...register("lastName", { required: true })}
@@ -178,7 +178,7 @@ export default function ReservationForm() {
                 id="mobileNumber"
                 placeholder="Enter your mobile number"
                 className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white",
+                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
                   errors.mobileNumber && "border-red-500",
                 )}
                 {...register("mobileNumber", {
@@ -203,7 +203,7 @@ export default function ReservationForm() {
                 type="email"
                 placeholder="Enter your email address"
                 className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white",
+                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
                   errors.email && "border-red-500",
                 )}
                 {...register("email", {
@@ -229,7 +229,7 @@ export default function ReservationForm() {
                     id="reservationDate"
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                      "w-full justify-start text-left font-normal border-gray-300 bg-white text-gray-700 hover:bg-gray-50 py-2 px-3",
                       !date && "text-gray-500",
                       !date && errors.checkInDate && "border-red-500",
                     )}
@@ -262,7 +262,7 @@ export default function ReservationForm() {
                 min="1"
                 placeholder="Enter number of guests"
                 className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white",
+                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
                   errors.numberOfPeople && "border-red-500",
                 )}
                 {...register("numberOfPeople", {
@@ -290,7 +290,7 @@ export default function ReservationForm() {
             <Textarea
               id="specialMessage"
               placeholder="Any special requests or requirements?"
-              className="min-h-[100px] border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white"
+              className="min-h-[100px] border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3"
               {...register("specialMessage")}
             />
           </div>

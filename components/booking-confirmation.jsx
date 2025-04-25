@@ -139,7 +139,11 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
         )}
 
         <div className="flex justify-center mt-2">
-          <Button onClick={onClose} size="sm" className="bg-[#6b0000] hover:bg-[#8a0000] text-sm text-white">
+          <Button 
+            onClick={onClose} 
+            size="sm" 
+            className="bg-[#6b0000] hover:bg-[#8a0000] text-sm text-white px-6 py-2 rounded-md shadow-sm"
+          >
             Close
           </Button>
         </div>

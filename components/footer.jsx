@@ -98,10 +98,10 @@ export default function Footer() {
             </ul>
             <div className="mt-4 flex space-x-3">
               <Link href="https://www.facebook.com/stonewaterristorante" className="bg-[#6b0000] p-2 rounded-md hover:bg-red-900">
-                <Facebook size={20} />
+                <Facebook size={24} />
               </Link>
               <Link href="https://www.instagram.com/stonewaterristorante/" className="bg-[#6b0000] p-2 rounded-md hover:bg-red-900">
-                <Instagram size={20} />
+                <Instagram size={24} />
               </Link>
             </div>
           </div>
