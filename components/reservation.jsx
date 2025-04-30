@@ -25,6 +25,9 @@ export default function ReservationForm() {
   const [bookingDetails, setBookingDetails] = useState(null)
   const [ipRestricted, setIpRestricted] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [mealType, setMealType] = useState("");
+  const [lunchTime, setLunchTime] = useState("");
+  const [dinnerTime, setDinnerTime] = useState("");
 
   const {
     register,
@@ -44,41 +47,63 @@ export default function ReservationForm() {
       return
     }
 
+    if (!mealType || (mealType === "lunch" && !lunchTime) || (mealType === "dinner" && !dinnerTime)) {
+      toast.error("Please select a meal and time")
+      return
+    }
+
+    const selectedTime = mealType === "lunch" ? lunchTime : dinnerTime
+
     setIsSubmitting(true)
 
     try {
       const formData = {
         ...data,
         checkInDate: date,
+        checkInTime: selectedTime,
+        mealType,
         recaptchaToken: recaptchaValue,
       }
 
-      // For debugging
-      console.log("Submitting reservation with data:", formData)
+      // Create email parameters
+      const emailParams = {
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        subject: "Reservation Confirmation - Stonewater Restaurant",
+        params: {
+          FIRSTNAME: data.firstName,
+          NAME: `${data.firstName} ${data.lastName}`,
+          DATE: format(new Date(date), "EEEE, MMMM d, yyyy"),
+          TIME: selectedTime,
+          PEOPLE: data.numberOfPeople,
+          EMAIL: data.email,
+          PHONE: data.mobileNumber,
+          MESSAGE: data.specialMessage || "",
+          MEAL_TYPE: mealType.charAt(0).toUpperCase() + mealType.slice(1)
+        }
+      }
 
+      console.log("Submitting reservation with data:", formData)
+      console.log("Email parameters:", emailParams)
+
+      // First submit the reservation
       const result = await submitReservation(formData)
 
       if (result.success) {
-        // Check if there was an IP restriction
-        if (result.ipRestricted) {
-          setIpRestricted(true)
-          toast.success(result.message, { duration: 6000 })
-        } else {
-          toast.success("Reservation submitted successfully! A confirmation email has been sent to your email address.")
-        }
-
-        // Create booking details object
+        // Create booking details object with all information
         const details = {
           name: `${data.firstName} ${data.lastName}`,
           date: date,
+          time: selectedTime,
+          mealType,
           people: data.numberOfPeople,
           email: data.email,
           phone: data.mobileNumber,
+          specialMessage: data.specialMessage
         }
 
         console.log("Setting booking details:", details)
 
-        // Set booking details and show confirmation
         setBookingDetails(details)
         setShowConfirmation(true)
 
@@ -86,6 +111,17 @@ export default function ReservationForm() {
         reset()
         setDate(null)
         setRecaptchaValue(null)
+        setLunchTime("")
+        setDinnerTime("")
+        setMealType("")
+
+        // Check if there was an IP restriction
+        if (result.ipRestricted) {
+          setIpRestricted(true)
+          toast.success(result.message, { duration: 6000 })
+        } else {
+          toast.success("Reservation submitted successfully! A confirmation email has been sent to your email address.")
+        }
       } else {
         toast.error(result.message || "Failed to submit reservation. Please try again.")
       }
@@ -253,34 +289,96 @@ export default function ReservationForm() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="numberOfPeople" className="text-gray-700 font-medium">
-                Number of People
-              </Label>
-              <Input
-                id="numberOfPeople"
-                type="number"
-                min="1"
-                placeholder="Enter number of guests"
-                className={cn(
-                  "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
-                  errors.numberOfPeople && "border-red-500",
-                )}
-                {...register("numberOfPeople", {
-                  required: true,
-                  min: 1,
-                  max: 20,
-                })}
-              />
-              {errors.numberOfPeople?.type === "required" && (
-                <p className="text-red-500 text-sm">Number of people is required</p>
+              <Label className="text-gray-700 font-medium">Booking Time</Label>
+              <div className="flex space-x-4">
+                <Button
+                  type="button"
+                  variant={mealType === "lunch" ? "default" : "outline"}
+                  onClick={() => setMealType("lunch")}
+                  className={mealType === "lunch" ? "bg-[#6b0000] text-white" : ""}
+                >
+                  Lunch
+                </Button>
+                <Button
+                  type="button"
+                  variant={mealType === "dinner" ? "default" : "outline"}
+                  onClick={() => setMealType("dinner")}
+                  className={mealType === "dinner" ? "bg-[#6b0000] text-white" : ""}
+                >
+                  Dinner
+                </Button>
+              </div>
+
+              {mealType === "lunch" && (
+                <select
+                  className="mt-2 border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3 w-full rounded-md"
+                  value={lunchTime}
+                  onChange={e => setLunchTime(e.target.value)}
+                >
+                  <option value="">Select Lunch Time</option>
+                  <option value="11:30">11:30 AM</option>
+                  <option value="12:00">12:00 PM</option>
+                  <option value="12:30">12:30 PM</option>
+                  <option value="13:00">1:00 PM</option>
+                  <option value="13:30">1:30 PM</option>
+                  <option value="14:00">2:00 PM</option>
+                  <option value="14:30">2:30 PM</option>
+                </select>
               )}
-              {errors.numberOfPeople?.type === "min" && (
-                <p className="text-red-500 text-sm">Minimum 1 person required</p>
+
+              {mealType === "dinner" && (
+                <select
+                  className="mt-2 border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3 w-full rounded-md"
+                  value={dinnerTime}
+                  onChange={e => setDinnerTime(e.target.value)}
+                >
+                  <option value="">Select Dinner Time</option>
+                  <option value="17:30">5:30 PM</option>
+                  <option value="18:00">6:00 PM</option>
+                  <option value="18:30">6:30 PM</option>
+                  <option value="19:00">7:00 PM</option>
+                  <option value="19:30">7:30 PM</option>
+                  <option value="20:00">8:00 PM</option>
+                  <option value="20:30">8:30 PM</option>
+                  <option value="21:00">9:00 PM</option>
+                  <option value="21:30">9:30 PM</option>
+                </select>
               )}
-              {errors.numberOfPeople?.type === "max" && (
-                <p className="text-red-500 text-sm">Maximum 20 people allowed</p>
+
+              {!((mealType === "lunch" && lunchTime) || (mealType === "dinner" && dinnerTime)) && (
+                <p className="text-red-500 text-sm mt-1">Please select a meal and time</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="numberOfPeople" className="text-gray-700 font-medium">
+              Number of People
+            </Label>
+            <Input
+              id="numberOfPeople"
+              type="number"
+              min="1"
+              placeholder="Enter number of guests"
+              className={cn(
+                "border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3",
+                errors.numberOfPeople && "border-red-500",
+              )}
+              {...register("numberOfPeople", {
+                required: true,
+                min: 1,
+                max: 20,
+              })}
+            />
+            {errors.numberOfPeople?.type === "required" && (
+              <p className="text-red-500 text-sm">Number of people is required</p>
+            )}
+            {errors.numberOfPeople?.type === "min" && (
+              <p className="text-red-500 text-sm">Minimum 1 person required</p>
+            )}
+            {errors.numberOfPeople?.type === "max" && (
+              <p className="text-red-500 text-sm">Maximum 20 people allowed</p>
+            )}
           </div>
 
           <div className="space-y-2">

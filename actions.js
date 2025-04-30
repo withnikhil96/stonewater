@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { format } from "date-fns"
 
 export async function submitReservation(formData) {
   try {
@@ -21,18 +22,31 @@ export async function submitReservation(formData) {
 
     // Format the date for display
     const date = new Date(formData.checkInDate)
-    const formattedDate = date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
+    const formattedDate = format(date, "EEEE, MMMM d, yyyy")
+
+    // Get the selected time and meal type
+    const selectedTime = formData.reservationTime || formData.checkInTime || ""
+    const mealType = formData.mealType || ""
+
+    // Format the time (convert 24h to 12h format if needed)
+    let formattedTime = selectedTime
+    if (selectedTime && selectedTime.includes(":")) {
+      try {
+        const [hours, minutes] = selectedTime.split(":")
+        const hour = Number.parseInt(hours, 10)
+        const ampm = hour >= 12 ? "PM" : "AM"
+        const hour12 = hour % 12 || 12
+        formattedTime = `${hour12}:${minutes} ${ampm}`
+      } catch (error) {
+        console.error("Error formatting time:", error)
+      }
+    }
 
     // Customer confirmation email - using Brevo API directly
     const customerEmailData = {
       sender: {
         name: "Stonewater Indian Restaurant",
-        email: "stonewaterbar@gmail.com", // Updated to use the restaurant's email as sender
+        email: "stonewaterbar@gmail.com",
       },
       to: [
         {
@@ -44,31 +58,36 @@ export async function submitReservation(formData) {
       htmlContent: `
         <html>
           <body>
-            <h1>Reservation Confirmation</h1>
+            <h1>Booking Request Received</h1>
             <p>Dear ${formData.firstName},</p>
-            <p>Thank you for your reservation at Stonewater Indian Restaurant.</p>
-            <p><strong>Reservation Details:</strong></p>
+            <p>We have received your booking request at Stonewater Indian Restaurant. We will review your request and send a confirmation email shortly.</p>
+            <p><strong>Booking Details:</strong></p>
             <ul>
+              <li>Name: ${formData.firstName} ${formData.lastName}</li>
+              <li>Email: ${formData.email}</li>
+              <li>Phone: ${formData.mobileNumber}</li>
               <li>Date: ${formattedDate}</li>
+              <li>Time: ${formattedTime || "Not specified"}</li>
+              ${mealType ? `<li>Meal: ${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</li>` : ""}
               <li>Number of People: ${formData.numberOfPeople}</li>
               <li>Special Requests: ${formData.specialMessage || "None"}</li>
             </ul>
-            <p>We look forward to welcoming you!</p>
+            <p>Please note that this is not a confirmation. You will receive a separate confirmation email once your booking has been reviewed.</p>
             <p>Best regards,<br>Stonewater Indian Restaurant Team</p>
           </body>
         </html>
       `,
     }
 
-    // Restaurant notification email - sending to the same email address
+    // Restaurant notification email
     const restaurantEmailData = {
       sender: {
         name: "Stonewater Reservation System",
-        email: "stonewaterbar@gmail.com", // Using the same email as sender
+        email: "stonewaterbar@gmail.com",
       },
       to: [
         {
-          email: "stonewaterbar@gmail.com", // Restaurant email
+          email: "stonewaterbar@gmail.com",
           name: "Stonewater Restaurant",
         },
       ],
@@ -83,6 +102,8 @@ export async function submitReservation(formData) {
               <li>Email: ${formData.email}</li>
               <li>Phone: ${formData.mobileNumber}</li>
               <li>Date: ${formattedDate}</li>
+              <li>Time: ${formattedTime || "Not specified"}</li>
+              ${mealType ? `<li>Meal: ${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</li>` : ""}
               <li>Number of People: ${formData.numberOfPeople}</li>
               <li>Special Requests: ${formData.specialMessage || "None"}</li>
             </ul>

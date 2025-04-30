@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button"
 import { CheckCircle, Mail, Phone, AlertTriangle, Clock, X } from "lucide-react"
 import confetti from "canvas-confetti"
 
+function formatTimeTo12Hour(time) {
+  if (!time) return "";
+  const [hour, minute] = time.split(":");
+  let h = parseInt(hour, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${minute} ${ampm}`;
+}
+
 export default function BookingConfirmation({ isOpen, onClose, bookingDetails, ipRestricted = false }) {
   const [isVisible, setIsVisible] = useState(false)
 
@@ -93,7 +103,7 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
               <span className="font-medium text-gray-600">Time:</span>
               <span className="flex items-center text-gray-800">
                 <Clock className="h-3.5 w-3.5 mr-1 text-gray-500" />
-                {bookingDetails.time}
+                {formatTimeTo12Hour(bookingDetails.time)}
               </span>
             </div>
           )}
@@ -104,11 +114,13 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
             </span>
           </div>
           {bookingDetails.email && (
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-gray-600">Email:</span>
-              <span className="flex items-center text-gray-800 truncate max-w-[140px]" title={bookingDetails.email}>
+            <div className="flex justify-between items-center overflow-hidden">
+              <span className="font-medium text-gray-600 flex-shrink-0">Email:</span>
+              <span className="flex items-center text-gray-800 ml-2 overflow-hidden" title={bookingDetails.email}>
                 <Mail className="h-3.5 w-3.5 mr-1 text-gray-500 flex-shrink-0" />
-                {bookingDetails.email}
+                <span className="overflow-hidden text-ellipsis break-all">
+                  {bookingDetails.email}
+                </span>
               </span>
             </div>
           )}

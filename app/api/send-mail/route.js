@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 
+// Add this helper function at the top of the file
+function formatTimeTo12Hour(time) {
+  if (!time) return "";
+  const [hour, minute] = time.split(":");
+  let h = parseInt(hour, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${minute} ${ampm}`;
+}
+
 export async function POST(request) {
   try {
     const data = await request.json()
+    console.log("Received email request data:", data)
     const { name, email, subject, content, templateId, params } = data
+    console.log("Parsed parameters:", params)
 
     // Create a nodemailer transporter
     const transporter = nodemailer.createTransport({
@@ -17,6 +30,9 @@ export async function POST(request) {
       },
     })
 
+    // Format the time
+    const formattedTime = formatTimeTo12Hour(params?.TIME)
+
     // Setup email data
     const mailOptions = {
       from: process.env.EMAIL_FROM || '"Stonewater Restaurant" <stonewaterbar@gmail.com>',
@@ -25,12 +41,13 @@ export async function POST(request) {
       subject: subject || "Reservation Confirmation - Stonewater Restaurant",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-          <h2 style="color: #6b0000;">Reservation Confirmation</h2>
+          <h2 style="color: #6b0000;">Booking Details</h2>
           <p>Dear ${params?.FIRSTNAME || name},</p>
           <p>Thank you for your reservation at Stonewater Indian Restaurant.</p>
           <p><strong>Reservation Details:</strong></p>
           <ul style="list-style-type: none; padding-left: 0;">
             <li><strong>Date:</strong> ${params?.DATE || "As requested"}</li>
+            <li><strong>Time:</strong> ${formattedTime || "As requested"}</li>
             <li><strong>Party Size:</strong> ${params?.PEOPLE || "As specified"}</li>
             <li><strong>Name:</strong> ${params?.NAME || name}</li>
             <li><strong>Contact:</strong> ${params?.EMAIL || email}</li>
@@ -60,6 +77,7 @@ export async function POST(request) {
           <p><strong>Reservation Details:</strong></p>
           <ul>
             <li><strong>Date:</strong> ${params?.DATE || "Not specified"}</li>
+            <li><strong>Time:</strong> ${formattedTime || "Not specified"}</li>
             <li><strong>Party Size:</strong> ${params?.PEOPLE || "Not specified"}</li>
             <li><strong>Name:</strong> ${params?.NAME || name || "Not provided"}</li>
             <li><strong>Email:</strong> ${params?.EMAIL || email || "Not provided"}</li>
