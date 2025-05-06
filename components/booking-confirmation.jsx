@@ -83,7 +83,7 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
         </button>
         <div className="flex items-center mb-1">
           <CheckCircle className="h-6 w-6 mr-2" />
-          <h3 className="text-lg font-semibold">Booking Confirmed!</h3>
+          <h3 className="text-lg font-semibold">Submission Successful</h3>
         </div>
         <p className="text-sm text-white/90">Your reservation has been successfully submitted.</p>
       </div>
