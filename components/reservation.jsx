@@ -73,12 +73,11 @@ export default function ReservationForm() {
         params: {
           FIRSTNAME: data.firstName,
           NAME: `${data.firstName} ${data.lastName}`,
-          DATE: format(new Date(
+          DATE: format(new Date(Date.UTC(
             new Date(date).getFullYear(),
             new Date(date).getMonth(),
-            new Date(date).getDate(),
-            12 // Set time to noon to avoid any timezone related date shifts
-          ), "EEEE, MMMM d, yyyy"),
+            new Date(date).getDate()
+          )), "EEEE, MMMM d, yyyy"),
           TIME: selectedTime,
           PEOPLE: data.numberOfPeople,
           EMAIL: data.email,
