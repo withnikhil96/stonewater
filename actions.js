@@ -20,16 +20,16 @@ export async function submitReservation(formData) {
       }
     }
 
-    // Format the date for display - Fix timezone issue for Australia (Perth)
+    // Fix date handling for timezone differences (India to Australia)
     const date = new Date(formData.checkInDate)
-    // Create a new date without timezone information and add Australia time offset
-    const auDate = new Date(Date.UTC(
-      date.getFullYear(), 
-      date.getMonth(), 
-      date.getDate()
-    ))
-    // Format date properly
-    const formattedDate = format(auDate, "EEEE, MMMM d, yyyy")
+
+    // Extract only the date part (YYYY-MM-DD) to avoid timezone issues
+    const dateOnly = date.toISOString().split('T')[0]
+
+    // Create a new date explicitly in Perth timezone (+8:00)
+    // This ensures the date doesn't shift
+    const perthDate = new Date(dateOnly + 'T12:00:00+08:00')
+    const formattedDate = format(perthDate, "EEEE, MMMM d, yyyy")
 
     // Get the selected time and meal type
     const selectedTime = formData.reservationTime || formData.checkInTime || ""
