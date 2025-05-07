@@ -4,12 +4,22 @@ import nodemailer from "nodemailer"
 // Add this helper function at the top of the file
 function formatTimeTo12Hour(time) {
   if (!time) return "";
+  
+  // Check if time already includes AM/PM
+  if (time.includes("AM") || time.includes("PM")) {
+    return time;
+  }
+  
+  // Otherwise parse the hour:minute format
   const [hour, minute] = time.split(":");
-  let h = parseInt(hour, 10);
+  const h = parseInt(hour, 10);
+  
+  // Handle invalid input
+  if (isNaN(h)) return time;
+  
   const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${minute} ${ampm}`;
+  const hour12 = h % 12 || 12; // Convert 0 to 12
+  return `${hour12}:${minute} ${ampm}`;
 }
 
 export async function POST(request) {
