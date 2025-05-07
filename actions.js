@@ -20,9 +20,15 @@ export async function submitReservation(formData) {
       }
     }
 
-    // Format the date for display
+    // Format the date for display - Fix timezone issue
     const date = new Date(formData.checkInDate)
-    const formattedDate = format(date, "EEEE, MMMM d, yyyy")
+    // Force the date to be interpreted as local time to avoid timezone shift
+    const formattedDate = format(new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      12 // Set time to noon to avoid any timezone related date shifts
+    ), "EEEE, MMMM d, yyyy")
 
     // Get the selected time and meal type
     const selectedTime = formData.reservationTime || formData.checkInTime || ""

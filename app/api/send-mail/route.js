@@ -48,7 +48,7 @@ export async function POST(request) {
       from: process.env.EMAIL_FROM || '"Stonewater Restaurant" <stonewaterbar@gmail.com>',
       to: email, 
       replyTo: "stonewaterbar@gmail.com",
-      subject: subject || "Reservation Confirmation - Stonewater Restaurant",
+      subject: subject || "Booking Request Received - Stonewater Restaurant",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <h2 style="color: #6b0000;">Booking Details</h2>
