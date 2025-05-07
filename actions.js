@@ -1,7 +1,6 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { format } from "date-fns"
 
 export async function submitReservation(formData) {
   try {
@@ -20,40 +19,81 @@ export async function submitReservation(formData) {
       }
     }
 
-    // Fix date handling for timezone differences (India to Australia)
-    const date = new Date(formData.checkInDate)
+    // Replace the date formatting section with this improved version that handles timezone differences
+    // Format the date for display - FIX FOR TIMEZONE ISSUES
+    let formattedDate = "Date not specified"
 
-    // Extract only the date part (YYYY-MM-DD) to avoid timezone issues
-    const dateOnly = date.toISOString().split('T')[0]
-
-    // Create a new date explicitly in Perth timezone (+8:00)
-    // This ensures the date doesn't shift
-    const perthDate = new Date(dateOnly + 'T12:00:00+08:00')
-    const formattedDate = format(perthDate, "EEEE, MMMM d, yyyy")
-
-    // Get the selected time and meal type
-    const selectedTime = formData.reservationTime || formData.checkInTime || ""
-    const mealType = formData.mealType || ""
-
-    // Format the time (convert 24h to 12h format if needed)
-    let formattedTime = selectedTime
-    if (selectedTime && selectedTime.includes(":")) {
+    if (formData.checkInDate) {
       try {
-        const [hours, minutes] = selectedTime.split(":")
-        const hour = Number.parseInt(hours, 10)
-        const ampm = hour >= 12 ? "PM" : "AM"
-        const hour12 = hour % 12 || 12
-        formattedTime = `${hour12}:${minutes} ${ampm}`
+        // Handle both Date objects and ISO strings
+        let dateObj
+
+        if (typeof formData.checkInDate === "string") {
+          // If it's a string like "2023-05-07", we need to ensure it's treated as local time
+          // Split the date string to get year, month, day
+          const [year, month, day] = formData.checkInDate.split("T")[0].split("-").map(Number)
+
+          // Create a new date using the specified timezone (months are 0-indexed in JS)
+          // Force the date to be interpreted in Perth timezone
+          dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+        } else {
+          // If it's already a Date object, create a new UTC date to avoid timezone shifts
+          dateObj = new Date(
+            Date.UTC(
+              formData.checkInDate.getFullYear(),
+              formData.checkInDate.getMonth(),
+              formData.checkInDate.getDate(),
+              0,
+              0,
+              0,
+            ),
+          )
+        }
+
+        // Ensure we're working with a valid date
+        if (!isNaN(dateObj.getTime())) {
+          // Format the date in the Perth timezone
+          const options = {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone: "Australia/Perth", // Force Perth timezone
+          }
+          formattedDate = new Intl.DateTimeFormat("en-US", options).format(dateObj)
+        } else {
+          console.error("Invalid date object:", formData.checkInDate)
+          formattedDate = "Date not specified"
+        }
       } catch (error) {
-        console.error("Error formatting time:", error)
+        console.error("Error formatting date:", error, formData.checkInDate)
+        formattedDate = "Date not specified"
       }
     }
 
+    // Format the time (convert 24h to 12h format if needed)
+    let formattedTime = ""
+
+    // Handle both the new meal type approach and the previous time-only approach
+    const reservationTime = formData.reservationTime || formData.checkInTime
+
+    if (reservationTime) {
+      const [hours, minutes] = reservationTime.split(":")
+      const hour = Number.parseInt(hours, 10)
+      const ampm = hour >= 12 ? "PM" : "AM"
+      const hour12 = hour % 12 || 12
+      formattedTime = `${hour12}:${minutes} ${ampm}`
+    }
+
+    // Get meal type if available
+    const mealType = formData.mealType || ""
+
+    // Update the email templates to include all requested details
     // Customer confirmation email - using Brevo API directly
     const customerEmailData = {
       sender: {
         name: "Stonewater Indian Restaurant",
-        email: "stonewaterbar@gmail.com",
+        email: "stonewaterbar@gmail.com", // Updated to use the restaurant's email as sender
       },
       to: [
         {
@@ -61,62 +101,60 @@ export async function submitReservation(formData) {
           name: `${formData.firstName} ${formData.lastName}`,
         },
       ],
-      subject: "Your Reservation Confirmation",
+      subject: "Booking Request",
       htmlContent: `
-        <html>
-          <body>
-            <h1>Booking Request Received</h1>
-            <p>Dear ${formData.firstName},</p>
-            <p>We have received your booking request at Stonewater Indian Restaurant. We will review your request and send a confirmation email shortly.</p>
-            <p><strong>Booking Details:</strong></p>
-            <ul>
-              <li>Name: ${formData.firstName} ${formData.lastName}</li>
-              <li>Email: ${formData.email}</li>
-              <li>Phone: ${formData.mobileNumber}</li>
-              <li>Date: ${formattedDate}</li>
-              <li>Time: ${formattedTime || "Not specified"}</li>
-              ${mealType ? `<li>Meal: ${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</li>` : ""}
-              <li>Number of People: ${formData.numberOfPeople}</li>
-              <li>Special Requests: ${formData.specialMessage || "None"}</li>
-            </ul>
-            <p>Please note that this is not a confirmation. You will receive a separate confirmation email once your booking has been reviewed.</p>
-            <p>Best regards,<br>Stonewater Indian Restaurant Team</p>
-          </body>
-        </html>
-      `,
+    <html>
+      <body>
+        <h1>Reservation Request</h1>
+        <p>Dear ${formData.firstName},</p>
+        <p>Thank you for your reservation at Stonewater Indian Restaurant.</p>
+        <p><strong>Reservation Details:</strong></p>
+        <ul>
+          <li><strong>Name:</strong> ${formData.firstName} ${formData.lastName}</li>
+          <li><strong>Email:</strong> ${formData.email}</li>
+          <li><strong>Phone:</strong> ${formData.mobileNumber}</li>
+          <li><strong>Date:</strong> ${formattedDate}</li>
+          <li><strong>Time:</strong> ${formattedTime}${mealType ? ` (${mealType.charAt(0).toUpperCase() + mealType.slice(1)})` : ""}</li>
+          <li><strong>Number of People:</strong> ${formData.numberOfPeople}</li>
+          <li><strong>Special Requests:</strong> ${formData.specialMessage || "None"}</li>
+        </ul>
+        <p>We look forward to welcoming you!</p>
+        <p>Best regards,<br>Stonewater Indian Restaurant Team</p>
+      </body>
+    </html>
+  `,
     }
 
-    // Restaurant notification email
+    // Restaurant notification email - sending to the same email address
     const restaurantEmailData = {
       sender: {
         name: "Stonewater Reservation System",
-        email: "stonewaterbar@gmail.com",
+        email: "stonewaterbar@gmail.com", // Using the same email as sender
       },
       to: [
         {
-          email: "stonewaterbar@gmail.com",
+          email: "stonewaterbar@gmail.com", // Restaurant email
           name: "Stonewater Restaurant",
         },
       ],
       subject: "New Reservation",
       htmlContent: `
-        <html>
-          <body>
-            <h1>New Reservation</h1>
-            <p><strong>Customer Details:</strong></p>
-            <ul>
-              <li>Name: ${formData.firstName} ${formData.lastName}</li>
-              <li>Email: ${formData.email}</li>
-              <li>Phone: ${formData.mobileNumber}</li>
-              <li>Date: ${formattedDate}</li>
-              <li>Time: ${formattedTime || "Not specified"}</li>
-              ${mealType ? `<li>Meal: ${mealType.charAt(0).toUpperCase() + mealType.slice(1)}</li>` : ""}
-              <li>Number of People: ${formData.numberOfPeople}</li>
-              <li>Special Requests: ${formData.specialMessage || "None"}</li>
-            </ul>
-          </body>
-        </html>
-      `,
+    <html>
+      <body>
+        <h1>New Reservation</h1>
+        <p><strong>Customer Details:</strong></p>
+        <ul>
+          <li><strong>Name:</strong> ${formData.firstName} ${formData.lastName}</li>
+          <li><strong>Email:</strong> ${formData.email}</li>
+          <li><strong>Phone:</strong> ${formData.mobileNumber}</li>
+          <li><strong>Date:</strong> ${formattedDate}</li>
+          <li><strong>Time:</strong> ${formattedTime}${mealType ? ` (${mealType.charAt(0).toUpperCase() + mealType.slice(1)})` : ""}</li>
+          <li><strong>Number of People:</strong> ${formData.numberOfPeople}</li>
+          <li><strong>Special Requests:</strong> ${formData.specialMessage || "None"}</li>
+        </ul>
+      </body>
+    </html>
+  `,
     }
 
     // For development/testing or when IP restrictions are in place
@@ -127,8 +165,6 @@ export async function submitReservation(formData) {
       })
       console.log("Customer email data:", customerEmailData)
       console.log("Restaurant email data:", restaurantEmailData)
-
-      // Save reservation data to a database or file here if needed
 
       // Return success without actually sending emails
       return {

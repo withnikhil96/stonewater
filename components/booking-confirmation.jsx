@@ -1,19 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Mail, Phone, AlertTriangle, Clock, X } from "lucide-react"
 import confetti from "canvas-confetti"
 
 function formatTimeTo12Hour(time) {
-  if (!time) return "";
-  const [hour, minute] = time.split(":");
-  let h = parseInt(hour, 10);
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${minute} ${ampm}`;
+  if (!time) return ""
+  const [hour, minute] = time.split(":")
+  let h = Number.parseInt(hour, 10)
+  const ampm = h >= 12 ? "PM" : "AM"
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${minute} ${ampm}`
 }
 
 export default function BookingConfirmation({ isOpen, onClose, bookingDetails, ipRestricted = false }) {
@@ -47,16 +46,46 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
     return null
   }
 
+  // Update the date formatting to handle timezone differences
   // Format the date safely
   let formattedDate = "Date not specified"
   try {
     if (bookingDetails.date) {
       // Handle both Date objects and ISO strings
-      const dateObj = bookingDetails.date instanceof Date ? bookingDetails.date : new Date(bookingDetails.date)
+      let dateObj
+
+      if (typeof bookingDetails.date === "string") {
+        // If it's a string like "2023-05-07", we need to ensure it's treated as local time
+        // Split the date string to get year, month, day
+        const [year, month, day] = bookingDetails.date.split("T")[0].split("-").map(Number)
+
+        // Create a new date using UTC to avoid timezone shifts
+        dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+      } else {
+        // If it's already a Date object, create a new UTC date
+        dateObj = new Date(
+          Date.UTC(
+            bookingDetails.date.getFullYear(),
+            bookingDetails.date.getMonth(),
+            bookingDetails.date.getDate(),
+            0,
+            0,
+            0,
+          ),
+        )
+      }
 
       // Check if date is valid before formatting
       if (!isNaN(dateObj.getTime())) {
-        formattedDate = format(dateObj, "EEEE, MMMM d, yyyy")
+        // Format using Intl.DateTimeFormat to respect the Perth timezone
+        const options = {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Australia/Perth", // Force Perth timezone
+        }
+        formattedDate = new Intl.DateTimeFormat("en-US", options).format(dateObj)
       } else {
         console.error("Invalid date object:", bookingDetails.date)
       }
@@ -89,6 +118,7 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
       </div>
 
       <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+        {/* Add special requests to the confirmation dialog */}
         <div className="space-y-2.5 text-sm">
           <div className="flex justify-between items-center">
             <span className="font-medium text-gray-600">Name:</span>
@@ -104,6 +134,8 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
               <span className="flex items-center text-gray-800">
                 <Clock className="h-3.5 w-3.5 mr-1 text-gray-500" />
                 {formatTimeTo12Hour(bookingDetails.time)}
+                {bookingDetails.mealType &&
+                  ` (${bookingDetails.mealType.charAt(0).toUpperCase() + bookingDetails.mealType.slice(1)})`}
               </span>
             </div>
           )}
@@ -118,9 +150,7 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
               <span className="font-medium text-gray-600 flex-shrink-0">Email:</span>
               <span className="flex items-center text-gray-800 ml-2 overflow-hidden" title={bookingDetails.email}>
                 <Mail className="h-3.5 w-3.5 mr-1 text-gray-500 flex-shrink-0" />
-                <span className="overflow-hidden text-ellipsis break-all">
-                  {bookingDetails.email}
-                </span>
+                <span className="overflow-hidden text-ellipsis break-all">{bookingDetails.email}</span>
               </span>
             </div>
           )}
@@ -131,6 +161,12 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
                 <Phone className="h-3.5 w-3.5 mr-1 text-gray-500" />
                 {bookingDetails.phone}
               </span>
+            </div>
+          )}
+          {bookingDetails.specialRequests && (
+            <div className="flex flex-col">
+              <span className="font-medium text-gray-600">Special Requests:</span>
+              <span className="text-gray-800 mt-1">{bookingDetails.specialRequests}</span>
             </div>
           )}
         </div>
@@ -151,9 +187,9 @@ export default function BookingConfirmation({ isOpen, onClose, bookingDetails, i
         )}
 
         <div className="flex justify-center mt-2">
-          <Button 
-            onClick={onClose} 
-            size="sm" 
+          <Button
+            onClick={onClose}
+            size="sm"
             className="bg-[#6b0000] hover:bg-[#8a0000] text-sm text-white px-6 py-2 rounded-md shadow-sm"
           >
             Close

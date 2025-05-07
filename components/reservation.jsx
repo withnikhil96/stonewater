@@ -25,9 +25,9 @@ export default function ReservationForm() {
   const [bookingDetails, setBookingDetails] = useState(null)
   const [ipRestricted, setIpRestricted] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
-  const [mealType, setMealType] = useState("");
-  const [lunchTime, setLunchTime] = useState("");
-  const [dinnerTime, setDinnerTime] = useState("");
+  const [mealType, setMealType] = useState("")
+  const [lunchTime, setLunchTime] = useState("")
+  const [dinnerTime, setDinnerTime] = useState("")
 
   const {
     register,
@@ -36,6 +36,7 @@ export default function ReservationForm() {
     reset,
   } = useForm()
 
+  // Update the form submission to handle timezone differences
   const onSubmit = async (data) => {
     if (!recaptchaValue) {
       toast.error("Please complete the reCAPTCHA verification")
@@ -57,53 +58,47 @@ export default function ReservationForm() {
     setIsSubmitting(true)
 
     try {
+      // Create a date that will be correctly interpreted in Perth timezone
+      // We use UTC to avoid timezone shifts
+      const safeDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0))
+
       const formData = {
         ...data,
-        checkInDate: date,
+        checkInDate: safeDate.toISOString(), // Send as ISO string to preserve the date
         checkInTime: selectedTime,
         mealType,
         recaptchaToken: recaptchaValue,
       }
 
-      // Create email parameters
-      const emailParams = {
-        name: `${data.firstName} ${data.lastName}`,
-        email: data.email,
-        subject: "Reservation Confirmation - Stonewater Restaurant",
-        params: {
-          FIRSTNAME: data.firstName,
-          NAME: `${data.firstName} ${data.lastName}`,
-          DATE: format(new Date(date.toISOString().split('T')[0] + 'T12:00:00+08:00'), "EEEE, MMMM d, yyyy"),
-          TIME: selectedTime,
-          PEOPLE: data.numberOfPeople,
-          EMAIL: data.email,
-          PHONE: data.mobileNumber,
-          MESSAGE: data.specialMessage || "",
-          MEAL_TYPE: mealType.charAt(0).toUpperCase() + mealType.slice(1)
-        }
-      }
-
+      // For debugging
       console.log("Submitting reservation with data:", formData)
-      console.log("Email parameters:", emailParams)
 
-      // First submit the reservation
       const result = await submitReservation(formData)
 
       if (result.success) {
-        // Create booking details object with all information
+        // Check if there was an IP restriction
+        if (result.ipRestricted) {
+          setIpRestricted(true)
+          toast.success(result.message, { duration: 6000 })
+        } else {
+          toast.success("Reservation submitted successfully! A confirmation email has been sent to your email address.")
+        }
+
+        // Create booking details object
         const details = {
           name: `${data.firstName} ${data.lastName}`,
-          date: date,
+          date: safeDate,
           time: selectedTime,
           mealType,
           people: data.numberOfPeople,
           email: data.email,
           phone: data.mobileNumber,
-          specialMessage: data.specialMessage
+          specialRequests: data.specialMessage || "None",
         }
 
         console.log("Setting booking details:", details)
 
+        // Set booking details and show confirmation
         setBookingDetails(details)
         setShowConfirmation(true)
 
@@ -114,14 +109,6 @@ export default function ReservationForm() {
         setLunchTime("")
         setDinnerTime("")
         setMealType("")
-
-        // Check if there was an IP restriction
-        if (result.ipRestricted) {
-          setIpRestricted(true)
-          toast.success(result.message, { duration: 6000 })
-        } else {
-          toast.success("Reservation submitted successfully! A confirmation email has been sent to your email address.")
-        }
       } else {
         toast.error(result.message || "Failed to submit reservation. Please try again.")
       }
@@ -313,7 +300,7 @@ export default function ReservationForm() {
                 <select
                   className="mt-2 border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3 w-full rounded-md"
                   value={lunchTime}
-                  onChange={e => setLunchTime(e.target.value)}
+                  onChange={(e) => setLunchTime(e.target.value)}
                 >
                   <option value="">Select Lunch Time</option>
                   <option value="11:30">11:30 AM</option>
@@ -330,7 +317,7 @@ export default function ReservationForm() {
                 <select
                   className="mt-2 border-gray-300 focus:border-[#6b0000] focus:ring-[#6b0000] bg-white py-2 px-3 w-full rounded-md"
                   value={dinnerTime}
-                  onChange={e => setDinnerTime(e.target.value)}
+                  onChange={(e) => setDinnerTime(e.target.value)}
                 >
                   <option value="">Select Dinner Time</option>
                   <option value="17:30">5:30 PM</option>
@@ -373,12 +360,8 @@ export default function ReservationForm() {
             {errors.numberOfPeople?.type === "required" && (
               <p className="text-red-500 text-sm">Number of people is required</p>
             )}
-            {errors.numberOfPeople?.type === "min" && (
-              <p className="text-red-500 text-sm">Minimum 1 person required</p>
-            )}
-            {errors.numberOfPeople?.type === "max" && (
-              <p className="text-red-500 text-sm">Maximum 20 people allowed</p>
-            )}
+            {errors.numberOfPeople?.type === "min" && <p className="text-red-500 text-sm">Minimum 1 person required</p>}
+            {errors.numberOfPeople?.type === "max" && <p className="text-red-500 text-sm">Maximum 20 people allowed</p>}
           </div>
 
           <div className="space-y-2">
