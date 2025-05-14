@@ -25,16 +25,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
     
-    const success = await disableDate(date, reason || '')
+    // Increase timeout for Vercel's serverless function
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 55000) // Set close to Vercel's limit
     
-    if (success) {
-      return NextResponse.json({ success: true })
-    } else {
-      return NextResponse.json({ error: "Failed to save disabled dates" }, { status: 500 })
+    try {
+      const success = await disableDate(date, reason || '')
+      clearTimeout(timeoutId)
+      
+      if (success) {
+        return NextResponse.json({ success: true })
+      } else {
+        return NextResponse.json({ error: "Failed to save disabled dates" }, { status: 500 })
+      }
+    } catch (error) {
+      clearTimeout(timeoutId)
+      console.error("MongoDB operation error:", error)
+      return NextResponse.json({ error: "Database operation failed", details: error.message }, { status: 500 })
     }
   } catch (error) {
     console.error("Error disabling date:", error)
-    return NextResponse.json({ error: "Failed to disable date" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to disable date", details: error.message }, { status: 500 })
   }
 }
 

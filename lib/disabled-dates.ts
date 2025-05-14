@@ -6,6 +6,13 @@ const COLLECTION_NAME = 'disabledDates'
 // Get MongoDB collection
 export async function getDisabledDatesCollection() {
   const client = await clientPromise
+  // Ensure client is connected
+  try {
+    await client.connect()
+  } catch (error) {
+    // Already connected or other error
+    console.log("Connection status:", client.topology?.isConnected?.() || "Unknown")
+  }
   const db = client.db(process.env.MONGODB_DB || 'stonewater')
   return db.collection(COLLECTION_NAME)
 }
