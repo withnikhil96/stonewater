@@ -78,12 +78,13 @@ export default function ReservationForm() {
   } = useForm()
 
   useEffect(() => {
-    const loadDisabledDates = async () => {
+    async function loadDisabledDates() {
       try {
-        const response = await fetch("/api/disabled-dates")
-        const data = await response.json()
-        console.log("Loaded disabled dates:", data)
-        setDisabledDates(data)
+        const response = await fetch('/api/disabled-dates')
+        if (response.ok) {
+          const data = await response.json()
+          setDisabledDates(data)
+        }
       } catch (error) {
         console.error("Error loading disabled dates:", error)
       }
@@ -110,20 +111,19 @@ export default function ReservationForm() {
 
   const checkDateAvailability = async (selectedDate) => {
     try {
-      const response = await fetch("/api/disabled-dates")
-      const disabledDates = await response.json()
-      const dateStr = selectedDate.toISOString().split('T')[0]
-      const isDisabled = disabledDates.some(d => d.date === dateStr)
+      const dateStr = formatDateForApi(selectedDate)
+      const response = await fetch(`/api/check-date?date=${dateStr}`)
       
-      if (isDisabled) {
-        const disabledDate = disabledDates.find(d => d.date === dateStr)
-        toast.error(`This date is not available for booking${disabledDate.reason ? `: ${disabledDate.reason}` : ''}`)
-        return false
+      if (!response.ok) {
+        console.error("Error checking date availability:", response.statusText)
+        return false // Assume available if API fails
       }
-      return true
+      
+      const data = await response.json()
+      return !data.disabled // Return true if date is available
     } catch (error) {
       console.error("Error checking date availability:", error)
-      return true // Allow booking if check fails
+      return false // Assume available if check fails
     }
   }
 
@@ -364,9 +364,7 @@ export default function ReservationForm() {
                       disabledDates={disabledDates}
                       tileClassName={({ date }) => {
                         const dateStr = formatDateForApi(date)
-                        return disabledDates.some(d => d.date === dateStr) 
-                          ? 'bg-red-100 text-red-700 line-through cursor-not-allowed' 
-                          : null
+                        return disabledDates.some(d => d.date === dateStr) ? 'disabled-date' : null
                       }}
                     />
                   </div>

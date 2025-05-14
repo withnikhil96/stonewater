@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../auth/[...nextauth]/auth.config"
 import clientPromise from "@/lib/mongodb"
+import { 
+  getAllDisabledDates, 
+  disableDate, 
+  enableDate 
+} from '@/lib/disabled-dates'
 
 // Collection name for disabled dates
 const COLLECTION_NAME = "disabledDates"
@@ -28,15 +33,29 @@ async function getDisabledDates() {
 // Save a disabled date to MongoDB
 async function saveDisabledDate(date: string, reason: string) {
   try {
-    const collection = await getCollection()
-    await collection.insertOne({ 
+    console.log(`Attempting to save disabled date: ${date}`)
+    const client = await clientPromise
+    console.log('MongoDB client connected')
+    
+    const db = client.db(process.env.MONGODB_DB || "stonewater")
+    console.log(`Using database: ${process.env.MONGODB_DB || "stonewater"}`)
+    
+    const collection = db.collection(COLLECTION_NAME)
+    console.log(`Using collection: ${COLLECTION_NAME}`)
+    
+    const result = await collection.insertOne({ 
       date, 
       reason, 
       createdAt: new Date() 
     })
-    return true
+    
+    console.log(`MongoDB insertOne result:`, result)
+    return result.acknowledged
   } catch (error) {
-    console.error("Error saving disabled date to MongoDB:", error)
+    console.error("Detailed error saving disabled date to MongoDB:", error)
+    if (error instanceof Error) {
+      console.error(`Error name: ${error.name}, message: ${error.message}, stack: ${error.stack}`)
+    }
     return false
   }
 }
@@ -78,7 +97,7 @@ function formatDate(date: Date | string): string {
 
 export async function GET() {
   try {
-    const dates = await getDisabledDates()
+    const dates = await getAllDisabledDates()
     return NextResponse.json(dates)
   } catch (error) {
     console.error("Error in GET /api/disabled-dates:", error)
@@ -91,28 +110,18 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions)
     
     if (!session) {
-      console.log("Unauthorized attempt to disable date")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    console.log("POST request body:", body)
+    const { date, reason } = await request.json()
     
-    const { date, reason } = body
     if (!date) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
 
-    // Check if date already exists
-    const dates = await getDisabledDates()
-    if (dates.some(d => d.date === date)) {
-      return NextResponse.json({ error: "Date already disabled" }, { status: 400 })
-    }
-
-    const success = await saveDisabledDate(date, reason || '')
+    const success = await disableDate(date, reason || '')
     
     if (success) {
-      console.log(`Date ${date} disabled successfully`)
       return NextResponse.json({ success: true })
     } else {
       return NextResponse.json({ error: "Failed to disable date" }, { status: 500 })
@@ -131,26 +140,21 @@ export async function DELETE(request: Request) {
     const session = await getServerSession(authOptions)
     
     if (!session) {
-      console.log("Unauthorized attempt to enable date")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    console.log("DELETE request body:", body)
+    const { date } = await request.json()
     
-    const { date } = body
     if (!date) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
     
-    const success = await removeDisabledDate(date)
+    const success = await enableDate(date)
     
     if (success) {
-      console.log(`Date ${date} enabled successfully`)
       return NextResponse.json({ success: true })
     } else {
       // Date might not exist, but don't treat as error
-      console.log(`Date ${date} was not found in disabled dates`)
       return NextResponse.json({ success: true, notFound: true })
     }
   } catch (error) {
