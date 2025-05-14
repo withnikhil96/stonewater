@@ -1,39 +1,56 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../auth/[...nextauth]/auth.config"
-import { cookies } from "next/headers"
+import clientPromise from "@/lib/mongodb"
 
-// Cookie name constant
-const DISABLED_DATES_COOKIE = 'stonewater-disabled-dates'
+// Collection name for disabled dates
+const COLLECTION_NAME = "disabledDates"
 
-// Get disabled dates from cookies
+// Get MongoDB collection
+async function getCollection() {
+  const client = await clientPromise
+  const db = client.db(process.env.MONGODB_DB || "stonewater")
+  return db.collection(COLLECTION_NAME)
+}
+
+// Get disabled dates from MongoDB
 async function getDisabledDates() {
   try {
-    const cookieStore = await cookies()
-    const disabledDatesCookie = cookieStore.get(DISABLED_DATES_COOKIE)
-    if (disabledDatesCookie?.value) {
-      return JSON.parse(disabledDatesCookie.value)
-    }
-    return []
+    const collection = await getCollection()
+    const dates = await collection.find({}).toArray()
+    return dates.map(({ date, reason }) => ({ date, reason }))
   } catch (error) {
-    console.error("Error reading disabled dates from cookies:", error)
+    console.error("Error reading disabled dates from MongoDB:", error)
     return []
   }
 }
 
-// Save disabled dates to cookies
-async function saveDisabledDates(dates: any[]) {
-  // Limit cookie size by only storing essential data
-  const simplifiedDates = dates.map(({ date, reason }) => ({ date, reason }))
-  const cookieStore = await cookies()
-  cookieStore.set({
-    name: DISABLED_DATES_COOKIE,
-    value: JSON.stringify(simplifiedDates),
-    httpOnly: true,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365, // 1 year
-    sameSite: 'strict',
-  })
+// Save a disabled date to MongoDB
+async function saveDisabledDate(date: string, reason: string) {
+  try {
+    const collection = await getCollection()
+    await collection.insertOne({ 
+      date, 
+      reason, 
+      createdAt: new Date() 
+    })
+    return true
+  } catch (error) {
+    console.error("Error saving disabled date to MongoDB:", error)
+    return false
+  }
+}
+
+// Remove a disabled date from MongoDB
+async function removeDisabledDate(date: string) {
+  try {
+    const collection = await getCollection()
+    const result = await collection.deleteOne({ date })
+    return result.deletedCount > 0
+  } catch (error) {
+    console.error("Error removing disabled date from MongoDB:", error)
+    return false
+  }
 }
 
 // Helper function to format date consistently
@@ -86,22 +103,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
 
-    const dates = await getDisabledDates()
-    
     // Check if date already exists
-    if (!dates.some((d: any) => d.date === date)) {
-      dates.push({ 
-        date, 
-        reason: reason || '', 
-      })
-      await saveDisabledDates(dates)
-      console.log(`Date ${date} disabled successfully`)
+    const dates = await getDisabledDates()
+    if (dates.some(d => d.date === date)) {
+      return NextResponse.json({ error: "Date already disabled" }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true })
+    const success = await saveDisabledDate(date, reason || '')
+    
+    if (success) {
+      console.log(`Date ${date} disabled successfully`)
+      return NextResponse.json({ success: true })
+    } else {
+      return NextResponse.json({ error: "Failed to disable date" }, { status: 500 })
+    }
   } catch (error) {
     console.error("Error in POST /api/disabled-dates:", error)
-    return NextResponse.json({ error: "Failed to disable date", details: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Failed to disable date", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 })
   }
 }
 
@@ -122,21 +143,21 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
     
-    let dates = await getDisabledDates()
-    const originalCount = dates.length
+    const success = await removeDisabledDate(date)
     
-    dates = dates.filter((d: any) => d.date !== date)
-    
-    if (dates.length !== originalCount) {
-      await saveDisabledDates(dates)
+    if (success) {
       console.log(`Date ${date} enabled successfully`)
+      return NextResponse.json({ success: true })
     } else {
+      // Date might not exist, but don't treat as error
       console.log(`Date ${date} was not found in disabled dates`)
+      return NextResponse.json({ success: true, notFound: true })
     }
-
-    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error in DELETE /api/disabled-dates:", error)
-    return NextResponse.json({ error: "Failed to enable date", details: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Failed to enable date", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 })
   }
 } 
