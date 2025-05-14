@@ -31,10 +31,20 @@ export default function AdminDashboard() {
   const loadDisabledDates = async () => {
     try {
       const response = await fetch("/api/disabled-dates")
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Failed to load disabled dates:", response.status, errorData)
+        toast.error(`Failed to load dates: ${response.statusText}`)
+        return
+      }
+      
       const data = await response.json()
+      console.log("Loaded disabled dates:", data)
       setDisabledDates(data)
     } catch (error) {
       console.error("Error loading disabled dates:", error)
+      toast.error("Error loading dates")
     }
   }
 
@@ -54,9 +64,11 @@ export default function AdminDashboard() {
 
     try {
       const dateStr = formatDateForApi(selectedDate)
+      console.log("Toggling date:", dateStr)
       const isDateDisabled = disabledDates.some(d => d.date === dateStr)
 
       if (isDateDisabled) {
+        console.log("Attempting to enable date:", dateStr)
         // Enable date
         const response = await fetch("/api/disabled-dates", {
           method: "DELETE",
@@ -66,13 +78,17 @@ export default function AdminDashboard() {
           body: JSON.stringify({ date: dateStr }),
         })
 
-        if (response.ok) {
-          toast.success(`Bookings enabled for ${dateStr}`)
-          await loadDisabledDates() // Reload the dates immediately
-        } else {
-          toast.error("Failed to enable date")
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error("Failed to enable date:", response.status, errorData)
+          toast.error(`Failed to enable date: ${errorData.error || response.statusText}`)
+          return
         }
+
+        toast.success(`Bookings enabled for ${dateStr}`)
+        await loadDisabledDates()
       } else {
+        console.log("Attempting to disable date:", dateStr, "with reason:", reason)
         // Disable date
         const response = await fetch("/api/disabled-dates", {
           method: "POST",
@@ -82,19 +98,22 @@ export default function AdminDashboard() {
           body: JSON.stringify({ date: dateStr, reason }),
         })
 
-        if (response.ok) {
-          toast.success(`Bookings disabled for ${dateStr}${reason ? `: ${reason}` : ''}`)
-          await loadDisabledDates() // Reload the dates immediately
-        } else {
-          toast.error("Failed to disable date")
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error("Failed to disable date:", response.status, errorData)
+          toast.error(`Failed to disable date: ${errorData.error || response.statusText}`)
+          return
         }
+
+        toast.success(`Bookings disabled for ${dateStr}${reason ? `: ${reason}` : ''}`)
+        await loadDisabledDates()
       }
 
       setReason("")
       setSelectedDate(null)
     } catch (error) {
       console.error("Error toggling date:", error)
-      toast.error("An error occurred while updating the date")
+      toast.error(`An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -105,6 +124,7 @@ export default function AdminDashboard() {
 
   const handleEnableDate = async (dateStr: string) => {
     try {
+      console.log("Enabling date directly:", dateStr)
       const response = await fetch("/api/disabled-dates", {
         method: "DELETE",
         headers: {
@@ -113,15 +133,18 @@ export default function AdminDashboard() {
         body: JSON.stringify({ date: dateStr }),
       })
 
-      if (response.ok) {
-        toast.success(`Bookings enabled for ${dateStr}`)
-        await loadDisabledDates() // Reload the dates immediately
-      } else {
-        toast.error("Failed to enable date")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Failed to enable date:", response.status, errorData)
+        toast.error(`Failed to enable date: ${errorData.error || response.statusText}`)
+        return
       }
+
+      toast.success(`Bookings enabled for ${dateStr}`)
+      await loadDisabledDates()
     } catch (error) {
       console.error("Error enabling date:", error)
-      toast.error("An error occurred while enabling the date")
+      toast.error(`An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
