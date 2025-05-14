@@ -10,12 +10,14 @@ const options = {
   tls: true,
   tlsAllowInvalidCertificates: false,
   tlsAllowInvalidHostnames: false,
-  // Other options
+  // Improve connection handling with longer timeouts
+  connectTimeoutMS: 60000,
+  serverSelectionTimeoutMS: 60000,
+  maxIdleTimeMS: 10000, // Sync with Vercel plan (10s hobby, 300s pro, 900s enterprise)
   maxPoolSize: 10,
-  serverSelectionTimeoutMS: 10000,
 }
 
-let client
+let client: MongoClient
 let clientPromise: Promise<MongoClient>
 
 // For development, use a global variable so that connection is reused
@@ -26,13 +28,19 @@ if (process.env.NODE_ENV === 'development') {
 
   if (!globalWithMongo._mongoClientPromise) {
     client = new MongoClient(uri, options)
-    globalWithMongo._mongoClientPromise = client.connect()
+    // Key change: Wrap in a promise instead of calling connect()
+    globalWithMongo._mongoClientPromise = new Promise<MongoClient>((resolve) => {
+      resolve(client)
+    })
   }
   clientPromise = globalWithMongo._mongoClientPromise
 } else {
   // In production mode, it's best to not use a global variable
   client = new MongoClient(uri, options)
-  clientPromise = client.connect()
+  // Key change: Wrap in a promise instead of calling connect()
+  clientPromise = new Promise<MongoClient>((resolve) => {
+    resolve(client)
+  })
 }
 
 // Export a module-scoped MongoClient promise
