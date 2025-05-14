@@ -2,132 +2,77 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../auth/[...nextauth]/auth.config"
 import clientPromise from "@/lib/mongodb"
-import { 
-  getAllDisabledDates, 
-  disableDate, 
-  enableDate 
-} from '@/lib/disabled-dates'
 
-// Collection name for disabled dates
+// Collection and DB names
+const DB_NAME = process.env.MONGODB_DB || "stonewater"
 const COLLECTION_NAME = "disabledDates"
 
-// Get MongoDB collection
-async function getCollection() {
-  const client = await clientPromise
-  const db = client.db(process.env.MONGODB_DB || "stonewater")
-  return db.collection(COLLECTION_NAME)
-}
-
-// Get disabled dates from MongoDB
-async function getDisabledDates() {
-  try {
-    const collection = await getCollection()
-    const dates = await collection.find({}).toArray()
-    return dates.map(({ date, reason }) => ({ date, reason }))
-  } catch (error) {
-    console.error("Error reading disabled dates from MongoDB:", error)
-    return []
-  }
-}
-
-// Save a disabled date to MongoDB
-async function saveDisabledDate(date: string, reason: string) {
-  try {
-    console.log(`Attempting to save disabled date: ${date}`)
-    const client = await clientPromise
-    console.log('MongoDB client connected')
-    
-    const db = client.db(process.env.MONGODB_DB || "stonewater")
-    console.log(`Using database: ${process.env.MONGODB_DB || "stonewater"}`)
-    
-    const collection = db.collection(COLLECTION_NAME)
-    console.log(`Using collection: ${COLLECTION_NAME}`)
-    
-    const result = await collection.insertOne({ 
-      date, 
-      reason, 
-      createdAt: new Date() 
-    })
-    
-    console.log(`MongoDB insertOne result:`, result)
-    return result.acknowledged
-  } catch (error) {
-    console.error("Detailed error saving disabled date to MongoDB:", error)
-    if (error instanceof Error) {
-      console.error(`Error name: ${error.name}, message: ${error.message}, stack: ${error.stack}`)
-    }
-    return false
-  }
-}
-
-// Remove a disabled date from MongoDB
-async function removeDisabledDate(date: string) {
-  try {
-    const collection = await getCollection()
-    const result = await collection.deleteOne({ date })
-    return result.deletedCount > 0
-  } catch (error) {
-    console.error("Error removing disabled date from MongoDB:", error)
-    return false
-  }
-}
-
-// Helper function to format date consistently
-function formatDate(date: Date | string): string {
-  if (typeof date === 'string') {
-    // If it's already a string, make sure it's in YYYY-MM-DD format
-    if (date.includes('T')) {
-      // If it has time component, strip it off
-      return date.split('T')[0];
-    }
-    return date;
-  }
-  
-  // For Date objects, convert to YYYY-MM-DD in Australia/Perth timezone
-  const options: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Australia/Perth'
-  };
-  
-  const formattedDate = new Intl.DateTimeFormat('en-CA', options).format(date);
-  return formattedDate; // This will be in YYYY-MM-DD format
-}
-
 export async function GET() {
+  console.log("GET /api/disabled-dates called")
+  
   try {
-    const dates = await getAllDisabledDates()
+    const client = await clientPromise
+    const db = client.db(DB_NAME)
+    const collection = db.collection(COLLECTION_NAME)
+    
+    const dates = await collection.find({}).toArray()
+    console.log(`Found ${dates.length} disabled dates`)
+    
     return NextResponse.json(dates)
   } catch (error) {
-    console.error("Error in GET /api/disabled-dates:", error)
+    console.error("Error fetching disabled dates:", error)
     return NextResponse.json({ error: "Failed to fetch disabled dates" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
+  console.log("POST /api/disabled-dates called")
+  
   try {
+    // Check authentication
     const session = await getServerSession(authOptions)
-    
     if (!session) {
+      console.log("Unauthorized attempt to disable date")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { date, reason } = await request.json()
+    // Get date and reason from request
+    const body = await request.json()
+    const { date, reason } = body
+    
+    console.log("Received request to disable date:", { date, reason })
     
     if (!date) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
 
-    const success = await disableDate(date, reason || '')
+    // Connect to MongoDB
+    const client = await clientPromise
+    const db = client.db(DB_NAME)
+    const collection = db.collection(COLLECTION_NAME)
     
-    if (success) {
-      return NextResponse.json({ success: true })
+    // Check if date already exists
+    const existingDate = await collection.findOne({ date })
+    
+    if (existingDate) {
+      console.log(`Date ${date} already disabled, updating reason`)
+      await collection.updateOne(
+        { date },
+        { $set: { reason, updatedAt: new Date() } }
+      )
     } else {
-      return NextResponse.json({ error: "Failed to disable date" }, { status: 500 })
+      console.log(`Disabling new date: ${date}`)
+      await collection.insertOne({
+        date,
+        reason: reason || '',
+        createdAt: new Date()
+      })
     }
+    
+    console.log(`Successfully disabled date: ${date}`)
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error in POST /api/disabled-dates:", error)
+    console.error("Error disabling date:", error)
     return NextResponse.json({ 
       error: "Failed to disable date", 
       details: error instanceof Error ? error.message : "Unknown error" 
@@ -136,29 +81,43 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  console.log("DELETE /api/disabled-dates called")
+  
   try {
+    // Check authentication
     const session = await getServerSession(authOptions)
-    
     if (!session) {
+      console.log("Unauthorized attempt to enable date")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { date } = await request.json()
+    // Get date from request
+    const body = await request.json()
+    const { date } = body
+    
+    console.log("Received request to enable date:", { date })
     
     if (!date) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 })
     }
+
+    // Connect to MongoDB
+    const client = await clientPromise
+    const db = client.db(DB_NAME)
+    const collection = db.collection(COLLECTION_NAME)
     
-    const success = await enableDate(date)
+    // Delete the date
+    const result = await collection.deleteOne({ date })
     
-    if (success) {
+    if (result.deletedCount > 0) {
+      console.log(`Successfully enabled date: ${date}`)
       return NextResponse.json({ success: true })
     } else {
-      // Date might not exist, but don't treat as error
+      console.log(`Date not found: ${date}`)
       return NextResponse.json({ success: true, notFound: true })
     }
   } catch (error) {
-    console.error("Error in DELETE /api/disabled-dates:", error)
+    console.error("Error enabling date:", error)
     return NextResponse.json({ 
       error: "Failed to enable date", 
       details: error instanceof Error ? error.message : "Unknown error" 

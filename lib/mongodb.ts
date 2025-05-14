@@ -1,34 +1,27 @@
 import { MongoClient } from 'mongodb'
 
-if (!process.env.MONGODB_URI) {
-  console.error("MONGODB_URI is not defined in environment variables")
-  throw new Error('Please add your MongoDB URI to .env.local')
-}
-
-const uri = process.env.MONGODB_URI
-const options = {
-  maxPoolSize: 10,
-  serverSelectionTimeoutMS: 10000,
-}
+// Replace your connection string after the word mongodb
+const uri = process.env.MONGODB_URI || "mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<dbname>?retryWrites=true&w=majority"
 
 let client
 let clientPromise: Promise<MongoClient>
 
+// For development, use a global variable so that connection is reused
 if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable 
   let globalWithMongo = global as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>
   }
 
   if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options)
+    client = new MongoClient(uri)
     globalWithMongo._mongoClientPromise = client.connect()
   }
   clientPromise = globalWithMongo._mongoClientPromise
 } else {
-  // In production mode
-  client = new MongoClient(uri, options)
+  // In production mode, it's best to not use a global variable
+  client = new MongoClient(uri)
   clientPromise = client.connect()
 }
 
+// Export a module-scoped MongoClient promise
 export default clientPromise 
