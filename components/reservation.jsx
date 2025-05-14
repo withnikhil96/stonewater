@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,46 @@ import { format } from "date-fns"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import CustomCalendar from "./custom-calendar"
 
+const DisabledDateAlert = ({ disabledDates }) => {
+  const today = new Date().toISOString().split('T')[0]
+  
+  const upcomingDisabledDates = disabledDates
+    .filter(d => d.date >= today)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 3)
+  
+  if (upcomingDisabledDates.length === 0) return null
+  
+  return (
+    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md mb-6 animate-pulse">
+      <div className="flex items-start">
+        <div className="flex-shrink-0">
+          <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <div className="ml-3">
+          <h3 className="text-sm font-medium">Booking Unavailable on the Following Dates:</h3>
+          <div className="mt-2 text-sm">
+            <ul className="list-disc pl-5 space-y-1">
+              {upcomingDisabledDates.map(date => (
+                <li key={date.date}>
+                  {new Date(date.date).toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                  {date.reason && <span className="text-red-600 font-medium"> - {date.reason}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ReservationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [date, setDate] = useState(null)
@@ -28,6 +68,7 @@ export default function ReservationForm() {
   const [mealType, setMealType] = useState("")
   const [lunchTime, setLunchTime] = useState("")
   const [dinnerTime, setDinnerTime] = useState("")
+  const [disabledDates, setDisabledDates] = useState([])
 
   const {
     register,
@@ -36,7 +77,56 @@ export default function ReservationForm() {
     reset,
   } = useForm()
 
-  // Update the form submission to handle timezone differences
+  useEffect(() => {
+    const loadDisabledDates = async () => {
+      try {
+        const response = await fetch("/api/disabled-dates")
+        const data = await response.json()
+        console.log("Loaded disabled dates:", data)
+        setDisabledDates(data)
+      } catch (error) {
+        console.error("Error loading disabled dates:", error)
+      }
+    }
+    
+    loadDisabledDates()
+  }, [])
+
+  const formatDateForApi = (date) => {
+    const options = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'Australia/Perth'
+    };
+    
+    return new Intl.DateTimeFormat('en-CA', options).format(date); // This will be in YYYY-MM-DD format
+  }
+
+  const isDateDisabled = ({ date }) => {
+    const dateStr = formatDateForApi(date)
+    return disabledDates.some(d => d.date === dateStr)
+  }
+
+  const checkDateAvailability = async (selectedDate) => {
+    try {
+      const response = await fetch("/api/disabled-dates")
+      const disabledDates = await response.json()
+      const dateStr = selectedDate.toISOString().split('T')[0]
+      const isDisabled = disabledDates.some(d => d.date === dateStr)
+      
+      if (isDisabled) {
+        const disabledDate = disabledDates.find(d => d.date === dateStr)
+        toast.error(`This date is not available for booking${disabledDate.reason ? `: ${disabledDate.reason}` : ''}`)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error("Error checking date availability:", error)
+      return true // Allow booking if check fails
+    }
+  }
+
   const onSubmit = async (data) => {
     if (!recaptchaValue) {
       toast.error("Please complete the reCAPTCHA verification")
@@ -44,7 +134,14 @@ export default function ReservationForm() {
     }
 
     if (!date) {
-      toast.error("Please select a reservation date")
+      toast.error("Please select a date")
+      return
+    }
+
+    const dateStr = formatDateForApi(date)
+    if (disabledDates.some(d => d.date === dateStr)) {
+      const disabledDate = disabledDates.find(d => d.date === dateStr)
+      toast.error(`This date is not available for booking${disabledDate.reason ? `: ${disabledDate.reason}` : ''}`)
       return
     }
 
@@ -58,25 +155,21 @@ export default function ReservationForm() {
     setIsSubmitting(true)
 
     try {
-      // Create a date that will be correctly interpreted in Perth timezone
-      // We use UTC to avoid timezone shifts
       const safeDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0))
 
       const formData = {
         ...data,
-        checkInDate: safeDate.toISOString(), // Send as ISO string to preserve the date
+        checkInDate: safeDate.toISOString(),
         checkInTime: selectedTime,
         mealType,
         recaptchaToken: recaptchaValue,
       }
 
-      // For debugging
       console.log("Submitting reservation with data:", formData)
 
       const result = await submitReservation(formData)
 
       if (result.success) {
-        // Check if there was an IP restriction
         if (result.ipRestricted) {
           setIpRestricted(true)
           toast.success(result.message, { duration: 6000 })
@@ -84,7 +177,6 @@ export default function ReservationForm() {
           toast.success("Reservation submitted successfully! A confirmation email has been sent to your email address.")
         }
 
-        // Create booking details object
         const details = {
           name: `${data.firstName} ${data.lastName}`,
           date: safeDate,
@@ -98,11 +190,9 @@ export default function ReservationForm() {
 
         console.log("Setting booking details:", details)
 
-        // Set booking details and show confirmation
         setBookingDetails(details)
         setShowConfirmation(true)
 
-        // Reset form
         reset()
         setDate(null)
         setRecaptchaValue(null)
@@ -120,13 +210,11 @@ export default function ReservationForm() {
     }
   }
 
-  // Function to handle dialog close
   const handleConfirmationClose = () => {
     console.log("Closing confirmation dialog")
     setShowConfirmation(false)
   }
 
-  // Function to handle date selection
   const handleDateSelect = (selectedDate) => {
     setDate(selectedDate)
     setCalendarOpen(false)
@@ -156,6 +244,8 @@ export default function ReservationForm() {
             </div>
           </div>
         )}
+
+        <DisabledDateAlert disabledDates={disabledDates} />
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -268,7 +358,17 @@ export default function ReservationForm() {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <div className="p-2">
-                    <CustomCalendar onSelectDate={handleDateSelect} selectedDate={date} />
+                    <CustomCalendar
+                      onSelectDate={handleDateSelect}
+                      selectedDate={date}
+                      disabledDates={disabledDates}
+                      tileClassName={({ date }) => {
+                        const dateStr = formatDateForApi(date)
+                        return disabledDates.some(d => d.date === dateStr) 
+                          ? 'bg-red-100 text-red-700 line-through cursor-not-allowed' 
+                          : null
+                      }}
+                    />
                   </div>
                 </PopoverContent>
               </Popover>
@@ -378,7 +478,7 @@ export default function ReservationForm() {
 
           <div className="flex justify-center my-6">
             <ReCAPTCHA
-              sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" // This is a test key, replace with your actual key
+              sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
               onChange={setRecaptchaValue}
               theme="light"
             />
@@ -413,13 +513,11 @@ export default function ReservationForm() {
         </div>
       </div>
 
-      {/* Debug information */}
       <div className="hidden">
         Show Confirmation: {showConfirmation ? "Yes" : "No"}
         Booking Details: {bookingDetails ? "Set" : "Not Set"}
       </div>
 
-      {/* Ensure the dialog is rendered conditionally */}
       {showConfirmation && bookingDetails && (
         <BookingConfirmation
           isOpen={showConfirmation}
