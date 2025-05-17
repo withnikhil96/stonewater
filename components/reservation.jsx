@@ -17,6 +17,7 @@ import { format } from "date-fns"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import CustomCalendar from "./custom-calendar"
 
+// Update the DisabledDateAlert component
 const DisabledDateAlert = ({ disabledDates }) => {
   const today = new Date().toISOString().split('T')[0]
   
@@ -28,7 +29,7 @@ const DisabledDateAlert = ({ disabledDates }) => {
   if (upcomingDisabledDates.length === 0) return null
   
   return (
-    <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md mb-6 animate-pulse">
+    <div className="bg-red-50 border-2 border-red-200 text-red-800 px-4 py-3 rounded-md mb-6 animate-pulse">
       <div className="flex items-start">
         <div className="flex-shrink-0">
           <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -46,7 +47,15 @@ const DisabledDateAlert = ({ disabledDates }) => {
                     month: 'long', 
                     day: 'numeric' 
                   })}
-                  {date.reason && <span className="text-red-600 font-medium"> - {date.reason}</span>}
+                  {date.lunchDisabled && date.dinnerDisabled ? (
+                    <span className="text-red-600 font-medium"> - All day</span>
+                  ) : (
+                    <span className="text-red-600 font-medium">
+                      {date.lunchDisabled ? ' - Lunch' : ''}
+                      {date.dinnerDisabled ? ' - Dinner' : ''}
+                    </span>
+                  )}
+                  {date.reason && <span className="text-red-600 font-medium"> ({date.reason})</span>}
                 </li>
               ))}
             </ul>
@@ -109,10 +118,10 @@ export default function ReservationForm() {
     return disabledDates.some(d => d.date === dateStr)
   }
 
-  const checkDateAvailability = async (selectedDate) => {
+  const checkDateAvailability = async (selectedDate, mealType) => {
     try {
       const dateStr = formatDateForApi(selectedDate)
-      const response = await fetch(`/api/check-date?date=${dateStr}`)
+      const response = await fetch(`/api/check-date?date=${dateStr}&timeSlot=${mealType}`)
       
       if (!response.ok) {
         console.error("Error checking date availability:", response.statusText)
@@ -127,6 +136,16 @@ export default function ReservationForm() {
     }
   }
 
+  const isMealTypeDisabled = (selectedDate, type) => {
+    if (!selectedDate) return false;
+    
+    const dateStr = formatDateForApi(selectedDate);
+    const disabledDate = disabledDates.find(d => d.date === dateStr);
+    
+    if (!disabledDate) return false;
+    return type === 'lunch' ? disabledDate.lunchDisabled : disabledDate.dinnerDisabled;
+  };
+
   const onSubmit = async (data) => {
     if (!recaptchaValue) {
       toast.error("Please complete the reCAPTCHA verification")
@@ -138,15 +157,15 @@ export default function ReservationForm() {
       return
     }
 
-    const dateStr = formatDateForApi(date)
-    if (disabledDates.some(d => d.date === dateStr)) {
-      const disabledDate = disabledDates.find(d => d.date === dateStr)
-      toast.error(`This date is not available for booking${disabledDate.reason ? `: ${disabledDate.reason}` : ''}`)
+    if (!mealType || (mealType === "lunch" && !lunchTime) || (mealType === "dinner" && !dinnerTime)) {
+      toast.error("Please select a meal and time")
       return
     }
 
-    if (!mealType || (mealType === "lunch" && !lunchTime) || (mealType === "dinner" && !dinnerTime)) {
-      toast.error("Please select a meal and time")
+    // Check if the selected time slot is available
+    const isAvailable = await checkDateAvailability(date, mealType)
+    if (!isAvailable) {
+      toast.error(`${mealType === 'lunch' ? 'Lunch' : 'Dinner'} bookings are not available on this date`)
       return
     }
 
@@ -218,6 +237,15 @@ export default function ReservationForm() {
   const handleDateSelect = (selectedDate) => {
     setDate(selectedDate)
     setCalendarOpen(false)
+    
+    // If meal type is already selected but it's disabled for the new date, reset it
+    if (mealType === 'lunch' && isMealTypeDisabled(selectedDate, 'lunch')) {
+      setMealType("")
+      setLunchTime("")
+    } else if (mealType === 'dinner' && isMealTypeDisabled(selectedDate, 'dinner')) {
+      setMealType("")
+      setDinnerTime("")
+    }
   }
 
   return (
@@ -379,18 +407,34 @@ export default function ReservationForm() {
                 <Button
                   type="button"
                   variant={mealType === "lunch" ? "default" : "outline"}
-                  onClick={() => setMealType("lunch")}
-                  className={mealType === "lunch" ? "bg-[#6b0000] text-white" : ""}
+                  onClick={() => {
+                    if (!isMealTypeDisabled(date, 'lunch')) {
+                      setMealType("lunch");
+                    } else {
+                      toast.error("Lunch bookings are not available on this date");
+                    }
+                  }}
+                  disabled={isMealTypeDisabled(date, 'lunch')}
+                  className={`${mealType === "lunch" ? "bg-[#6b0000] text-white" : ""} 
+                             ${isMealTypeDisabled(date, 'lunch') ? "opacity-50 cursor-not-allowed line-through" : ""}`}
                 >
-                  Lunch
+                  {isMealTypeDisabled(date, 'lunch') ? "Lunch (Unavailable)" : "Lunch"}
                 </Button>
                 <Button
                   type="button"
                   variant={mealType === "dinner" ? "default" : "outline"}
-                  onClick={() => setMealType("dinner")}
-                  className={mealType === "dinner" ? "bg-[#6b0000] text-white" : ""}
+                  onClick={() => {
+                    if (!isMealTypeDisabled(date, 'dinner')) {
+                      setMealType("dinner");
+                    } else {
+                      toast.error("Dinner bookings are not available on this date");
+                    }
+                  }}
+                  disabled={isMealTypeDisabled(date, 'dinner')}
+                  className={`${mealType === "dinner" ? "bg-[#6b0000] text-white" : ""} 
+                             ${isMealTypeDisabled(date, 'dinner') ? "opacity-50 cursor-not-allowed line-through" : ""}`}
                 >
-                  Dinner
+                  {isMealTypeDisabled(date, 'dinner') ? "Dinner (Unavailable)" : "Dinner"}
                 </Button>
               </div>
 

@@ -5,12 +5,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
+    const timeSlot = searchParams.get('timeSlot') as 'lunch' | 'dinner' | null
     
     if (!date) {
       return NextResponse.json({ error: "Date parameter is required" }, { status: 400 })
     }
 
-    const disabled = await isDateDisabled(date)
+    const disabled = await isDateDisabled(date, timeSlot)
     
     return NextResponse.json({ disabled })
   } catch (error) {
