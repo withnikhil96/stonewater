@@ -57,7 +57,10 @@ export default function CustomCalendar({ onSelectDate, selectedDate }) {
 
   // Handle date selection
   const handleDateClick = (day) => {
-    if (day && day >= new Date() && !isApril26(day)) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0) // Set to start of today
+    
+    if (day && day >= today && !isApril26(day)) {
       onSelectDate(day)
     }
   }
