@@ -19,7 +19,13 @@ import CustomCalendar from "./custom-calendar"
 
 // Update the DisabledDateAlert component
 const DisabledDateAlert = ({ disabledDates }) => {
-  const today = new Date().toISOString().split('T')[0]
+  // Use Perth timezone for consistent date comparison
+  const today = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Australia/Perth'
+  }).format(new Date())
   
   const upcomingDisabledDates = disabledDates
     .filter(d => d.date >= today)
