@@ -74,7 +74,7 @@ export async function POST(request) {
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
       <h2 style="color: #6b0000;">Booking Details</h2>
       <p>Dear ${params?.FIRSTNAME || name},</p>
-      <p>Thank you for your reservation at Stonewater Indian Restaurant.</p>
+      <p>Thank you! Your request has been sent. Your reservation will be confirmed shortly.</p>
       <p><strong>Reservation Details:</strong></p>
       <ul style="list-style-type: none; padding-left: 0;">
         <li><strong>Name:</strong> ${params?.NAME || name}</li>

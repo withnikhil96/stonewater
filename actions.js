@@ -107,7 +107,7 @@ export async function submitReservation(formData) {
       <body>
         <h1>Reservation Request</h1>
         <p>Dear ${formData.firstName},</p>
-        <p>Thank you for your reservation at Stonewater Indian Restaurant.</p>
+        <p>Thank you! Your request has been sent. Your reservation will be confirmed shortly.</p>
         <p><strong>Reservation Details:</strong></p>
         <ul>
           <li><strong>Name:</strong> ${formData.firstName} ${formData.lastName}</li>
